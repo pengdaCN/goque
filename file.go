@@ -15,6 +15,7 @@ const (
 	goqueQueue
 	goquePriorityQueue
 	goquePrefixQueue
+	goqueAckQueue
 )
 
 // checkGoqueType checks if the type of Goque data structure
