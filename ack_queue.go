@@ -104,13 +104,15 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 
 	v, err := a.q.getItemByID(next)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrOutOfBounds), errors.Is(err, ErrEmpty):
-			if err := a.Close(); err != nil {
-				return nil, err
-			}
+		if !a.writeOpen {
+			switch {
+			case errors.Is(err, ErrOutOfBounds), errors.Is(err, ErrEmpty):
+				if err := a.innerClose(); err != nil {
+					return nil, err
+				}
 
-			return nil, ErrDBClosed
+				return nil, ErrDBClosed
+			}
 		}
 
 		return nil, err
@@ -153,10 +155,7 @@ func (a *AckQueue) HalfClose() {
 	}
 }
 
-func (a *AckQueue) Close() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
+func (a *AckQueue) innerClose() error {
 	// Check if queue is already closed.
 	if !a.isOpen {
 		return nil
@@ -177,6 +176,13 @@ func (a *AckQueue) Close() error {
 	a.isOpen = false
 
 	return nil
+}
+
+func (a *AckQueue) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return a.innerClose()
 }
 
 func (a *AckQueue) Drop() error {

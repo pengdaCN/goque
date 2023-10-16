@@ -106,5 +106,8 @@ func TestAckQueue3(t *testing.T) {
 		}
 
 		t.Log(item.ID)
+		if err := ackQueue.Submit(item.ID); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
