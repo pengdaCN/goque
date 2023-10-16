@@ -129,7 +129,7 @@ func (pq *PrefixQueue) EnqueueString(prefix, value string) (*Item, error) {
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (pq *PrefixQueue) EnqueueObject(prefix []byte, value interface{}) (*Item, error) {
+func (pq *PrefixQueue) EnqueueObject(prefix []byte, value any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(value); err != nil {
@@ -144,7 +144,7 @@ func (pq *PrefixQueue) EnqueueObject(prefix []byte, value interface{}) (*Item, e
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (pq *PrefixQueue) EnqueueObjectAsJSON(prefix []byte, value interface{}) (*Item, error) {
+func (pq *PrefixQueue) EnqueueObjectAsJSON(prefix []byte, value any) (*Item, error) {
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -297,7 +297,7 @@ func (pq *PrefixQueue) UpdateString(prefix string, id uint64, value string) (*It
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (pq *PrefixQueue) UpdateObject(prefix []byte, id uint64, newValue interface{}) (*Item, error) {
+func (pq *PrefixQueue) UpdateObject(prefix []byte, id uint64, newValue any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(newValue); err != nil {
@@ -311,7 +311,7 @@ func (pq *PrefixQueue) UpdateObject(prefix []byte, id uint64, newValue interface
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (pq *PrefixQueue) UpdateObjectAsJSON(prefix []byte, id uint64, newValue interface{}) (*Item, error) {
+func (pq *PrefixQueue) UpdateObjectAsJSON(prefix []byte, id uint64, newValue any) (*Item, error) {
 	jsonBytes, err := json.Marshal(newValue)
 	if err != nil {
 		return nil, err

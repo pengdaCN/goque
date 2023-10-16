@@ -19,5 +19,7 @@ var (
 	// ErrDBClosed is returned when the Close function has already
 	// been called, causing the stack or queue to close, as well as
 	// its underlying database.
-	ErrDBClosed = errors.New("goque: Database is closed")
+	ErrDBClosed            = errors.New("goque: Database is closed")
+	ErrInvalidAckID        = errors.New(`goque: invalid ack id`)
+	ErrCloseWriteOperation = errors.New(`goque: write operation is closed`)
 )
