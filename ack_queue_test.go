@@ -3,6 +3,7 @@ package goque
 import (
 	"context"
 	"errors"
+	"log"
 	"strconv"
 	"sync"
 	"testing"
@@ -119,31 +120,44 @@ func TestAckQueue_BDequeue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	for i := 0; i < 10; i++ {
+		go func() {
 
-		for i := 0; i < 10; i++ {
-			if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
-				panic(err)
+			for i := 0; i < 50; i++ {
+				if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
+					panic(err)
+				}
+
+				time.Sleep(time.Second)
 			}
 
-			time.Sleep(time.Second)
-		}
-
-		ackQueue.HalfClose()
-	}()
-
-	for {
-		item, err := ackQueue.BDequeue(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		t.Log(item.ID)
-		if err := ackQueue.Submit(item.ID); err != nil {
-			t.Fatal(err)
-		}
+			ackQueue.HalfClose()
+		}()
 	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+
+		id := i
+		go func() {
+			defer wg.Done()
+			for {
+				item, err := ackQueue.BDequeue(context.Background())
+				if err != nil {
+					log.Println(err.Error())
+					return
+				}
+
+				t.Log("id:", id, item.ID)
+				if err := ackQueue.Submit(item.ID); err != nil {
+					log.Println(err.Error())
+					return
+				}
+			}
+
+		}()
+	}
+
+	wg.Wait()
 }
