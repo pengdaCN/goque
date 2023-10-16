@@ -1,6 +1,7 @@
 package goque
 
 import (
+	"context"
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"os"
@@ -13,6 +14,7 @@ type AckQueue struct {
 	globalNextReaderCursor uint64
 	size                   uint64
 	oldIterator            iterator.Iterator
+	writeMsgEvent          chan struct{}
 	writeOpen              bool
 	oldIteratorIsClose     bool
 	isOpen                 bool
@@ -44,10 +46,12 @@ func OpenAckQueue(dataDir string) (*AckQueue, error) {
 	}
 
 	return &AckQueue{
-		q:           q,
-		oldIterator: firstIterator,
-		writeOpen:   true,
-		isOpen:      true,
+		q:                      q,
+		globalNextReaderCursor: q.head + 1,
+		oldIterator:            firstIterator,
+		writeMsgEvent:          make(chan struct{}, 1),
+		writeOpen:              true,
+		isOpen:                 true,
 	}, nil
 }
 
@@ -69,12 +73,26 @@ func (a *AckQueue) Enqueue(value []byte) (*Item, error) {
 		return nil, err
 	}
 
-	return a.q.Enqueue(value)
+	v, err := a.q.Enqueue(value)
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case a.writeMsgEvent <- struct{}{}:
+	default:
+	}
+
+	return v, nil
 }
 
 func (a *AckQueue) Dequeue() (*Item, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	if !a.isOpen {
+		return nil, ErrDBClosed
+	}
 
 	var next uint64
 	if !a.oldIteratorIsClose {
@@ -116,6 +134,33 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 	return v, nil
 }
 
+func (a *AckQueue) BDequeue(ctx context.Context) (*Item, error) {
+readMsg:
+	for {
+		item, err := a.Dequeue()
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrOutOfBounds), errors.Is(err, ErrEmpty):
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case _, ok := <-a.writeMsgEvent:
+					if ok {
+						continue readMsg
+					}
+
+					// 关闭时，再次读取会返回db close
+					continue readMsg
+				}
+			}
+
+			return nil, err
+		}
+
+		return item, nil
+	}
+}
+
 func (a *AckQueue) decrSize() error {
 	a.size -= 1
 
@@ -147,6 +192,7 @@ func (a *AckQueue) HalfClose() {
 
 	if a.writeOpen {
 		a.writeOpen = false
+		close(a.writeMsgEvent)
 	}
 }
 

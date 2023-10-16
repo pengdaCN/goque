@@ -1,6 +1,7 @@
 package goque
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"sync"
@@ -101,6 +102,41 @@ func TestAckQueue3(t *testing.T) {
 
 	for {
 		item, err := ackQueue.Dequeue()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Log(item.ID)
+		if err := ackQueue.Submit(item.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAckQueue_BDequeue(t *testing.T) {
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 10; i++ {
+			if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
+				panic(err)
+			}
+
+			time.Sleep(time.Second)
+		}
+
+		ackQueue.HalfClose()
+	}()
+
+	for {
+		item, err := ackQueue.BDequeue(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
