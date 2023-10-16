@@ -20,6 +20,6 @@ var (
 	// been called, causing the stack or queue to close, as well as
 	// its underlying database.
 	ErrDBClosed            = errors.New("goque: Database is closed")
-	ErrInvalidAckID        = errors.New(`invalid ack id`)
-	ErrCloseWriteOperation = errors.New(`write operation is closed`)
+	ErrInvalidAckID        = errors.New(`goque: invalid ack id`)
+	ErrCloseWriteOperation = errors.New(`goque: write operation is closed`)
 )
