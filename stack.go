@@ -96,7 +96,7 @@ func (s *Stack) PushString(value string) (*Item, error) {
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (s *Stack) PushObject(value interface{}) (*Item, error) {
+func (s *Stack) PushObject(value any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(value); err != nil {
@@ -111,7 +111,7 @@ func (s *Stack) PushObject(value interface{}) (*Item, error) {
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (s *Stack) PushObjectAsJSON(value interface{}) (*Item, error) {
+func (s *Stack) PushObjectAsJSON(value any) (*Item, error) {
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -231,7 +231,7 @@ func (s *Stack) UpdateString(id uint64, newValue string) (*Item, error) {
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (s *Stack) UpdateObject(id uint64, newValue interface{}) (*Item, error) {
+func (s *Stack) UpdateObject(id uint64, newValue any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(newValue); err != nil {
@@ -245,7 +245,7 @@ func (s *Stack) UpdateObject(id uint64, newValue interface{}) (*Item, error) {
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (s *Stack) UpdateObjectAsJSON(id uint64, newValue interface{}) (*Item, error) {
+func (s *Stack) UpdateObjectAsJSON(id uint64, newValue any) (*Item, error) {
 	jsonBytes, err := json.Marshal(newValue)
 	if err != nil {
 		return nil, err

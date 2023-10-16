@@ -119,7 +119,7 @@ func (q *Queue) EnqueueString(value string) (*Item, error) {
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (q *Queue) EnqueueObject(value interface{}) (*Item, error) {
+func (q *Queue) EnqueueObject(value any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(value); err != nil {
@@ -134,7 +134,7 @@ func (q *Queue) EnqueueObject(value interface{}) (*Item, error) {
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (q *Queue) EnqueueObjectAsJSON(value interface{}) (*Item, error) {
+func (q *Queue) EnqueueObjectAsJSON(value any) (*Item, error) {
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -254,7 +254,7 @@ func (q *Queue) UpdateString(id uint64, newValue string) (*Item, error) {
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (q *Queue) UpdateObject(id uint64, newValue interface{}) (*Item, error) {
+func (q *Queue) UpdateObject(id uint64, newValue any) (*Item, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(newValue); err != nil {
@@ -268,7 +268,7 @@ func (q *Queue) UpdateObject(id uint64, newValue interface{}) (*Item, error) {
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (q *Queue) UpdateObjectAsJSON(id uint64, newValue interface{}) (*Item, error) {
+func (q *Queue) UpdateObjectAsJSON(id uint64, newValue any) (*Item, error) {
 	jsonBytes, err := json.Marshal(newValue)
 	if err != nil {
 		return nil, err

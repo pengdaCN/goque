@@ -132,7 +132,7 @@ func (pq *PriorityQueue) EnqueueString(priority uint8, value string) (*PriorityI
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (pq *PriorityQueue) EnqueueObject(priority uint8, value interface{}) (*PriorityItem, error) {
+func (pq *PriorityQueue) EnqueueObject(priority uint8, value any) (*PriorityItem, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(value); err != nil {
@@ -147,7 +147,7 @@ func (pq *PriorityQueue) EnqueueObject(priority uint8, value interface{}) (*Prio
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (pq *PriorityQueue) EnqueueObjectAsJSON(priority uint8, value interface{}) (*PriorityItem, error) {
+func (pq *PriorityQueue) EnqueueObjectAsJSON(priority uint8, value any) (*PriorityItem, error) {
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -308,7 +308,7 @@ func (pq *PriorityQueue) UpdateString(priority uint8, id uint64, newValue string
 // when using this function. This is due to how the encoding/gob
 // package works. Because of this, you should only use this function
 // to encode simple types.
-func (pq *PriorityQueue) UpdateObject(priority uint8, id uint64, newValue interface{}) (*PriorityItem, error) {
+func (pq *PriorityQueue) UpdateObject(priority uint8, id uint64, newValue any) (*PriorityItem, error) {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	if err := enc.Encode(newValue); err != nil {
@@ -322,7 +322,7 @@ func (pq *PriorityQueue) UpdateObject(priority uint8, id uint64, newValue interf
 // encoding/json.
 //
 // Use this function to handle encoding of complex types.
-func (pq *PriorityQueue) UpdateObjectAsJSON(priority uint8, id uint64, newValue interface{}) (*PriorityItem, error) {
+func (pq *PriorityQueue) UpdateObjectAsJSON(priority uint8, id uint64, newValue any) (*PriorityItem, error) {
 	jsonBytes, err := json.Marshal(newValue)
 	if err != nil {
 		return nil, err
