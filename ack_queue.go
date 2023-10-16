@@ -95,8 +95,6 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 		next = a.globalNextReaderCursor
 	}
 
-	a.globalNextReaderCursor = next + 1
-
 	v, err := a.q.getItemByID(next)
 	if err != nil {
 		if !a.writeOpen {
@@ -112,6 +110,8 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 
 		return nil, err
 	}
+
+	a.globalNextReaderCursor = next + 1
 
 	return v, nil
 }
