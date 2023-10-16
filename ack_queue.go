@@ -7,11 +7,6 @@ import (
 	"sync"
 )
 
-var (
-	ErrInvalidAckID        = errors.New(`invalid ack id`)
-	ErrCloseWriteOperation = errors.New(`write operation is closed`)
-)
-
 type AckQueue struct {
 	mu                     sync.Mutex
 	q                      *Queue
