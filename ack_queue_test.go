@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -190,4 +191,100 @@ func TestAckQueue_BDequeue2(t *testing.T) {
 	}
 
 	t.Log(item.ID)
+}
+
+func TestOpenAckQueue(t *testing.T) {
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = ackQueue.CloseWrite()
+	_ = ackQueue.CloseRead()
+
+	ackQueue, err = OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = ackQueue.CloseWrite()
+	_ = ackQueue.CloseRead()
+
+	ackQueue, err = OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = ackQueue.CloseWrite()
+	_ = ackQueue.CloseRead()
+
+	ackQueue, err = OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func randomBytes(n int) []byte {
+	f, err := os.Open(`/dev/urandom`)
+	if err != nil {
+		panic(err)
+	}
+
+	bs := make([]byte, n)
+
+	if _, err := f.Read(bs); err != nil {
+		panic(err)
+	}
+
+	return bs
+}
+
+func TestAckQueue_Full(t *testing.T) {
+	//random := rand.New(rand.NewSource(time.Now().Unix() + 4546))
+	now := time.Now()
+
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer ackQueue.Drop()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 2000000; i++ {
+			_, err := ackQueue.Enqueue(randomBytes(2048))
+			if err != nil {
+				log.Println("写错误:", err.Error())
+				return
+			}
+		}
+
+		_ = ackQueue.CloseWrite()
+		log.Println("写耗时", time.Since(now))
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			item, err := ackQueue.BDequeue(context.Background())
+			if err != nil {
+				log.Println("读错误:", err.Error())
+				break
+			}
+
+			if err := ackQueue.Submit(item.ID); err != nil {
+				log.Println("提交错误:", err.Error())
+				break
+			}
+		}
+
+		_ = ackQueue.CloseRead()
+		log.Println("读耗时", time.Since(now))
+	}()
+	wg.Wait()
 }
