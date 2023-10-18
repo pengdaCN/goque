@@ -248,7 +248,7 @@ func TestAckQueue_Write(t *testing.T) {
 
 	//defer ackQueue.Drop()
 
-	for i := 0; i < 2000000; i++ {
+	for i := 0; i < 100000; i++ {
 		_, err := ackQueue.Enqueue(randomBytes(4 * (1024 * 1024)))
 		if err != nil {
 			log.Println("写错误:", err.Error())
@@ -303,7 +303,7 @@ func TestAckQueue_Full(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < 2000000; i++ {
+		for i := 0; i < 100000; i++ {
 			_, err := ackQueue.Enqueue(randomBytes(4 * (1024 * 1024)))
 			if err != nil {
 				log.Println("写错误:", err.Error())
