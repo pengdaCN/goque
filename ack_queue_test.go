@@ -120,19 +120,26 @@ func TestAckQueue_BDequeue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 10; i++ {
-		go func() {
+	{
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 
-			for i := 0; i < 50; i++ {
-				if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
-					panic(err)
+				for i := 0; i < 50; i++ {
+					if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
+						panic(err)
+					}
+
+					time.Sleep(time.Second)
 				}
 
-				time.Sleep(time.Second)
-			}
+			}()
+		}
 
-			ackQueue.HalfClose()
-		}()
+		wg.Wait()
+		ackQueue.HalfClose()
 	}
 
 	var wg sync.WaitGroup
@@ -151,7 +158,7 @@ func TestAckQueue_BDequeue(t *testing.T) {
 
 				t.Log("id:", id, item.ID)
 				if err := ackQueue.Submit(item.ID); err != nil {
-					log.Println(err.Error())
+					log.Println("id:", item.ID, "err:", err.Error())
 					return
 				}
 			}
