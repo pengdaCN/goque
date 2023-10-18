@@ -3,7 +3,6 @@ package goque
 import (
 	"context"
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"os"
 	"sync"
@@ -12,12 +11,12 @@ import (
 type AckQueue struct {
 	mu                     sync.Mutex
 	q                      *Queue
-	onlyDeleteDb           *leveldb.DB
 	globalNextReaderCursor uint64
 	size                   uint64
 	oldIterator            iterator.Iterator
 	writeMsgEvent          chan struct{}
 	writeOpen              bool
+	readOpen               bool
 	oldIteratorIsClose     bool
 	isOpen                 bool
 }
@@ -53,6 +52,7 @@ func OpenAckQueue(dataDir string) (*AckQueue, error) {
 		oldIterator:            firstIterator,
 		writeMsgEvent:          make(chan struct{}, 1),
 		writeOpen:              true,
+		readOpen:               true,
 		isOpen:                 true,
 	}, nil
 }
@@ -120,11 +120,8 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 		if !a.writeOpen {
 			switch {
 			case errors.Is(err, ErrOutOfBounds), errors.Is(err, ErrEmpty):
-				if err := a.innerClose(); err != nil {
-					return nil, err
-				}
 
-				return nil, ErrDBClosed
+				return nil, ErrCloseWriteOperation
 			}
 		}
 
@@ -182,35 +179,46 @@ func (a *AckQueue) Submit(id uint64) error {
 	}
 
 	if err := a.q.db.Delete(idToKey(id), nil); err != nil {
-		// 处理关闭状态下的提交
-		if a.onlyDeleteDb == nil {
-			db, err := leveldb.OpenFile(a.q.DataDir, nil)
-			if err != nil {
-				return err
-			}
-
-			a.onlyDeleteDb = db
-		}
-
-		return a.onlyDeleteDb.Delete(idToKey(id), nil)
+		return err
 	}
 
 	return nil
 }
 
-func (a *AckQueue) HalfClose() {
+func (a *AckQueue) CloseWrite() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.writeOpen {
 		a.writeOpen = false
 		close(a.writeMsgEvent)
+
+		return a.innerClose()
 	}
+
+	return nil
+}
+
+func (a *AckQueue) CloseRead() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.readOpen {
+		a.readOpen = false
+
+		return a.innerClose()
+	}
+
+	return nil
 }
 
 func (a *AckQueue) innerClose() error {
 	// Check if queue is already closed.
 	if !a.isOpen {
+		return nil
+	}
+
+	if a.writeOpen || a.readOpen {
 		return nil
 	}
 
@@ -225,17 +233,22 @@ func (a *AckQueue) innerClose() error {
 		return err
 	}
 
-	//a.globalNextReaderCursor = 0
+	a.globalNextReaderCursor = 0
 	a.isOpen = false
 
 	return nil
 }
 
 func (a *AckQueue) Close() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	if err := a.CloseWrite(); err != nil {
+		return err
+	}
 
-	return a.innerClose()
+	if err := a.CloseRead(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (a *AckQueue) Drop() error {

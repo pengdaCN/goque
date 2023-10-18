@@ -139,8 +139,12 @@ func TestAckQueue_BDequeue(t *testing.T) {
 		}
 
 		wg.Wait()
-		ackQueue.HalfClose()
+		if err := ackQueue.CloseWrite(); err != nil {
+			panic(err)
+		}
 	}
+
+	defer ackQueue.CloseRead()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
