@@ -171,7 +171,7 @@ func (a *AckQueue) Submit(id uint64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.globalNextReaderCursor < id {
+	if a.globalNextReaderCursor-1 < id {
 		return ErrInvalidAckID
 	}
 
@@ -213,7 +213,7 @@ func (a *AckQueue) innerClose() error {
 		return err
 	}
 
-	a.globalNextReaderCursor = 0
+	//a.globalNextReaderCursor = 0
 	a.isOpen = false
 
 	return nil
