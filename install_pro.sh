@@ -11,7 +11,7 @@ rm .idea -rf
 rm go.mod go.sum -f
 rm LICENSE -f
 rm README.md -f
-rm install-pro.sh
+rm install_pro.sh
 
 find -iname '*.go' -exec sed -i 's@github.com/beeker1121/goque@npd/pkg/goque@' {} \;
 
