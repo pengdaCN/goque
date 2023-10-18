@@ -172,3 +172,22 @@ func TestAckQueue_BDequeue(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestAckQueue_BDequeue2(t *testing.T) {
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer ackQueue.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	item, err := ackQueue.BDequeue(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(item.ID)
+}
