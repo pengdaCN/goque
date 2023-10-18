@@ -3,6 +3,7 @@ package goque
 import (
 	"context"
 	"errors"
+	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"os"
 	"sync"
@@ -11,6 +12,7 @@ import (
 type AckQueue struct {
 	mu                     sync.Mutex
 	q                      *Queue
+	onlyDeleteDb           *leveldb.DB
 	globalNextReaderCursor uint64
 	size                   uint64
 	oldIterator            iterator.Iterator
@@ -180,7 +182,17 @@ func (a *AckQueue) Submit(id uint64) error {
 	}
 
 	if err := a.q.db.Delete(idToKey(id), nil); err != nil {
-		return err
+		// 处理关闭状态下的提交
+		if a.onlyDeleteDb == nil {
+			db, err := leveldb.OpenFile(a.q.DataDir, nil)
+			if err != nil {
+				return err
+			}
+
+			a.onlyDeleteDb = db
+		}
+
+		return a.onlyDeleteDb.Delete(idToKey(id), nil)
 	}
 
 	return nil

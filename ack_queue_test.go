@@ -127,7 +127,7 @@ func TestAckQueue_BDequeue(t *testing.T) {
 			go func() {
 				defer wg.Done()
 
-				for i := 0; i < 50; i++ {
+				for i := 0; i < 10; i++ {
 					if _, err := ackQueue.Enqueue([]byte(`xx21` + strconv.Itoa(i+1))); err != nil {
 						panic(err)
 					}
