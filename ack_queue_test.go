@@ -238,6 +238,55 @@ func randomBytes(n int) []byte {
 	return bs
 }
 
+func TestAckQueue_Write(t *testing.T) {
+	now := time.Now()
+
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//defer ackQueue.Drop()
+
+	for i := 0; i < 2000000; i++ {
+		_, err := ackQueue.Enqueue(randomBytes(4 * (1024 * 1024)))
+		if err != nil {
+			log.Println("写错误:", err.Error())
+			return
+		}
+	}
+
+	_ = ackQueue.Close()
+	log.Println("写耗时", time.Since(now))
+}
+
+func TestAckQueue_Read(t *testing.T) {
+	now := time.Now()
+
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = ackQueue.CloseWrite()
+
+	for {
+		item, err := ackQueue.BDequeue(context.Background())
+		if err != nil {
+			log.Println("读错误:", err.Error())
+			break
+		}
+
+		if err := ackQueue.Submit(item.ID); err != nil {
+			log.Println("提交错误:", err.Error())
+			break
+		}
+	}
+
+	_ = ackQueue.CloseRead()
+	log.Println("读耗时", time.Since(now))
+}
+
 func TestAckQueue_Full(t *testing.T) {
 	//random := rand.New(rand.NewSource(time.Now().Unix() + 4546))
 	now := time.Now()
@@ -255,7 +304,7 @@ func TestAckQueue_Full(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < 2000000; i++ {
-			_, err := ackQueue.Enqueue(randomBytes(2048))
+			_, err := ackQueue.Enqueue(randomBytes(4 * (1024 * 1024)))
 			if err != nil {
 				log.Println("写错误:", err.Error())
 				return
