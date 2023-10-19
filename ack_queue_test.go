@@ -260,6 +260,38 @@ func TestAckQueue_Write(t *testing.T) {
 	log.Println("写耗时", time.Since(now))
 }
 
+func TestAckQueue_WriteMinute(t *testing.T) {
+
+	ackQueue, err := OpenAckQueue(`./test_queue/ack_queue2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
+
+	var c int
+loop:
+	for {
+		select {
+		case <-timer.C:
+			break loop
+		default:
+		}
+
+		_, err := ackQueue.Enqueue(randomBytes(4 * (1024 * 1024)))
+		if err != nil {
+			log.Println("写错误:", err.Error())
+			return
+		}
+
+		c++
+	}
+
+	_ = ackQueue.Close()
+	log.Println("写入数量:", c)
+}
+
 func TestAckQueue_Read(t *testing.T) {
 	now := time.Now()
 
