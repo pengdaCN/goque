@@ -369,3 +369,50 @@ func TestAckQueue_Full(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+type TestVal struct {
+	Name string
+	Age  int
+}
+
+func TestObjectAckQueue(t *testing.T) {
+	oaq, err := OpenObjectAckQueue[TestVal](`./test_queue/ack_queue3`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer oaq.Drop()
+
+	err = oaq.Enqueue(TestVal{
+		Name: "xxx",
+		Age:  100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item, err := oaq.Dequeue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(item.Value)
+
+	oaq2, err := OpenObjectAckQueue[*TestVal](`./test_queue/ack_queue4`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer oaq2.Drop()
+
+	if err := oaq2.Enqueue(&TestVal{
+		Name: "ppix123",
+		Age:  100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	item2, err := oaq2.Dequeue()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(item2.Value)
+}

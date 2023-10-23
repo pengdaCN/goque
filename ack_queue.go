@@ -1,7 +1,9 @@
 package goque
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"os"
@@ -257,4 +259,87 @@ func (a *AckQueue) Drop() error {
 	}
 
 	return os.RemoveAll(a.q.DataDir)
+}
+
+type ObjectItem[T any] struct {
+	ID    uint64
+	Key   []byte
+	Value T
+}
+
+type ObjectAckQueue[T any] struct {
+	queue *AckQueue
+}
+
+func OpenObjectAckQueue[T any](dataDir string) (*ObjectAckQueue[T], error) {
+	q, err := OpenAckQueue(dataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ObjectAckQueue[T]{
+		queue: q,
+	}, nil
+}
+
+func (o *ObjectAckQueue[T]) Enqueue(value T) error {
+	var buffer bytes.Buffer
+	enc := gob.NewEncoder(&buffer)
+	if err := enc.Encode(value); err != nil {
+		return err
+	}
+
+	if _, err := o.queue.Enqueue(buffer.Bytes()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (o *ObjectAckQueue[T]) toObject(item *Item) (*ObjectItem[T], error) {
+	dec := gob.NewDecoder(bytes.NewReader(item.Value))
+	var v T
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+
+	return &ObjectItem[T]{
+		ID:    item.ID,
+		Key:   item.Key,
+		Value: v,
+	}, nil
+}
+
+func (o *ObjectAckQueue[T]) Dequeue() (*ObjectItem[T], error) {
+	item, err := o.queue.Dequeue()
+	if err != nil {
+		return nil, err
+	}
+
+	return o.toObject(item)
+}
+
+func (o *ObjectAckQueue[T]) BDequeue(ctx context.Context) (*ObjectItem[T], error) {
+	item, err := o.queue.BDequeue(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return o.toObject(item)
+}
+
+func (o *ObjectAckQueue[T]) Submit(id uint64) error {
+	return o.queue.Submit(id)
+}
+func (o *ObjectAckQueue[T]) CloseWrite() error {
+	return o.queue.CloseWrite()
+}
+func (o *ObjectAckQueue[T]) CloseRead() error {
+	return o.queue.CloseRead()
+}
+func (o *ObjectAckQueue[T]) Close() error {
+	return o.queue.Close()
+}
+func (o *ObjectAckQueue[T]) Drop() error {
+	return o.queue.Drop()
 }
