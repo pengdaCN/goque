@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"os"
 	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb/iterator"
 )
 
 type AckQueue struct {

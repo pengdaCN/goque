@@ -53,7 +53,7 @@ func TestAckQueue2(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
 			if _, err := ackQueue.Enqueue([]byte(`xx1` + strconv.Itoa(i))); err != nil {
-				t.Fatal(err)
+				panic(err)
 			}
 
 			time.Sleep(time.Millisecond * 200)
@@ -87,7 +87,7 @@ func TestAckQueue2(t *testing.T) {
 
 			if dequeue.ID%2 == 0 {
 				if err := ackQueue.Submit(dequeue.ID); err != nil {
-					t.Fatal(err)
+					panic(err)
 				}
 			}
 		}

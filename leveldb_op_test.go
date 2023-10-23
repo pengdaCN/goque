@@ -1,9 +1,10 @@
 package goque
 
 import (
-	"github.com/syndtr/goleveldb/leveldb/util"
 	"strconv"
 	"testing"
+
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 func TestDeleteAndIterator1(t *testing.T) {
