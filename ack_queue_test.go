@@ -489,3 +489,60 @@ func TestIdToKey(t *testing.T) {
 	id := idToKey(0)
 	t.Log(id)
 }
+
+func TestAckQueue_Interface(t *testing.T) {
+	q, err := OpenObjectAckQueue[int](`./test_queue/ack_queue4`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iq := MakeIAckQueue(q)
+	defer iq.Drop()
+
+	go func() {
+		for {
+			fmt.Println(iq.State())
+			time.Sleep(time.Second)
+		}
+	}()
+
+	w, r := SplitIAckQueue(iq)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer w.Close()
+
+		for i := 0; i < 100; i++ {
+			if err := w.Push(i + 56); err != nil {
+				panic(err)
+			}
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer r.Close()
+
+		for {
+			item, err := r.BPop(context.Background())
+			if err != nil {
+				return
+			}
+			fmt.Println("id:", item.ID)
+			fmt.Println("val:", item.Value)
+
+			if err := r.Submit(item.ID); err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	t.Log(iq.State())
+	t.Log("Ok")
+}

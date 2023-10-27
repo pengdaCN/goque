@@ -463,3 +463,123 @@ func (o *ObjectAckQueue[T]) Close() error {
 func (o *ObjectAckQueue[T]) Drop() error {
 	return o.queue.Drop()
 }
+
+type IAckQueue[T any] interface {
+	Push(v T) error
+	Pop() (*ObjectItem[T], error)
+	BPop(ctx context.Context) (*ObjectItem[T], error)
+	Submit(id uint64) error
+	State() AckQueueState
+	CloseWrite() error // 关闭写请求
+	CloseRead() error  // 关闭读请求
+	Close() error      // 同时关闭读写请求
+	Drop() error       // 删除数据合目录
+}
+
+var _ IAckQueue[any] = (*iAckQueueImpl[any])(nil)
+
+type iAckQueueImpl[T any] struct {
+	q *ObjectAckQueue[T]
+}
+
+func (i *iAckQueueImpl[T]) Push(v T) error {
+	if err := i.q.Enqueue(v); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *iAckQueueImpl[T]) Pop() (*ObjectItem[T], error) {
+	return i.q.Dequeue()
+}
+
+func (i *iAckQueueImpl[T]) BPop(ctx context.Context) (*ObjectItem[T], error) {
+	return i.q.BDequeue(ctx)
+}
+
+func (i *iAckQueueImpl[T]) Submit(id uint64) error {
+	return i.q.Submit(id)
+}
+
+func (i *iAckQueueImpl[T]) State() AckQueueState {
+	return i.q.State()
+}
+
+func (i *iAckQueueImpl[T]) CloseWrite() error {
+	return i.q.CloseWrite()
+}
+
+func (i *iAckQueueImpl[T]) CloseRead() error {
+	return i.q.CloseRead()
+}
+
+func (i *iAckQueueImpl[T]) Close() error {
+	return i.q.Close()
+}
+
+func (i *iAckQueueImpl[T]) Drop() error {
+	return i.q.Drop()
+}
+
+type AckQueuePush[T any] interface {
+	Push(v T) error
+	Close() error
+}
+
+var _ AckQueuePush[any] = (*ackQueuePushImpl[any])(nil)
+
+type ackQueuePushImpl[T any] struct {
+	q IAckQueue[T]
+}
+
+func (a *ackQueuePushImpl[T]) Push(v T) error {
+	return a.q.Push(v)
+}
+
+func (a *ackQueuePushImpl[T]) Close() error {
+	return a.q.CloseWrite()
+}
+
+type AckQueuePop[T any] interface {
+	Pop() (*ObjectItem[T], error)
+	BPop(ctx context.Context) (*ObjectItem[T], error)
+	Submit(id uint64) error
+	Close() error
+}
+
+var _ AckQueuePop[any] = (*ackQueuePopImpl[any])(nil)
+
+type ackQueuePopImpl[T any] struct {
+	q IAckQueue[T]
+}
+
+func (a *ackQueuePopImpl[T]) Pop() (*ObjectItem[T], error) {
+	return a.q.Pop()
+}
+
+func (a *ackQueuePopImpl[T]) BPop(ctx context.Context) (*ObjectItem[T], error) {
+	return a.q.BPop(ctx)
+}
+
+func (a *ackQueuePopImpl[T]) Submit(id uint64) error {
+	return a.q.Submit(id)
+}
+
+func (a *ackQueuePopImpl[T]) Close() error {
+	return a.q.CloseRead()
+}
+
+func MakeIAckQueue[T any](q *ObjectAckQueue[T]) IAckQueue[T] {
+	return &iAckQueueImpl[T]{
+		q: q,
+	}
+}
+
+func SplitIAckQueue[T any](q IAckQueue[T]) (AckQueuePush[T], AckQueuePop[T]) {
+	return &ackQueuePushImpl[T]{
+			q: q,
+		}, &ackQueuePopImpl[T]{
+			q: q,
+		}
+}
