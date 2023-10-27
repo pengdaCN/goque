@@ -17,6 +17,7 @@ type Queue struct {
 	db      *leveldb.DB
 	head    uint64
 	tail    uint64
+	prefix  []byte
 	isOpen  bool
 }
 
@@ -40,7 +41,7 @@ func openQueueWithoutGoqueType(dataDir string) (*Queue, error) {
 
 	// Set isOpen and return.
 	q.isOpen = true
-	return q, q.init()
+	return q, nil
 }
 
 // OpenQueue opens a queue if one exists at the given directory. If one
@@ -77,6 +78,27 @@ func OpenQueue(dataDir string) (*Queue, error) {
 	return q, q.init()
 }
 
+func (q *Queue) decodingKey(key []byte) []byte {
+	prefixLength := len(q.prefix)
+	if prefixLength == 0 || len(key) < prefixLength {
+		return key
+	}
+
+	return key[prefixLength:]
+}
+
+func (q *Queue) encodingKey(key []byte) []byte {
+	if len(q.prefix) == 0 {
+		return key
+	}
+
+	encodingKey := make([]byte, len(key)+len(q.prefix))
+	copy(encodingKey[:len(q.prefix)], q.prefix)
+	copy(encodingKey[len(q.prefix):], key)
+
+	return encodingKey
+}
+
 // Enqueue adds an item to the queue.
 func (q *Queue) Enqueue(value []byte) (*Item, error) {
 	q.Lock()
@@ -93,6 +115,8 @@ func (q *Queue) Enqueue(value []byte) (*Item, error) {
 		Key:   idToKey(q.tail + 1),
 		Value: value,
 	}
+
+	item.Key = q.encodingKey(item.Key)
 
 	// Add it to the queue.
 	if err := q.db.Put(item.Key, item.Value, nil); err != nil {
@@ -327,6 +351,8 @@ func (q *Queue) getItemByID(id uint64) (*Item, error) {
 	// Get item from database.
 	var err error
 	item := &Item{ID: id, Key: idToKey(id)}
+	item.Key = q.encodingKey(item.Key)
+
 	if item.Value, err = q.db.Get(item.Key, nil); err != nil {
 		return nil, err
 	}

@@ -5,17 +5,35 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"os"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 )
 
+const (
+	ackQueuePrefixData byte = iota + 1
+	ackQueuePrefixMeta
+)
+
+var (
+	ackQueueMetaSizeKey = []byte{
+		ackQueuePrefixMeta,
+		's',
+		'i',
+		'z',
+		'e',
+	}
+)
+
 type AckQueue struct {
 	mu                     sync.Mutex
 	q                      *Queue
 	globalNextReaderCursor uint64
-	size                   uint64
+	size                   uint64 // 队列大小
+	readCount              uint64 // 读取数量统计
+	confirmCount           uint64 // 确认消息统计
 	oldIterator            iterator.Iterator
 	writeMsgEvent          chan struct{}
 	writeOpen              bool
@@ -27,6 +45,11 @@ type AckQueue struct {
 func OpenAckQueue(dataDir string) (*AckQueue, error) {
 	q, err := openQueueWithoutGoqueType(dataDir)
 	if err != nil {
+		return nil, err
+	}
+	q.prefix = []byte{ackQueuePrefixData}
+
+	if err := q.init(); err != nil {
 		return nil, err
 	}
 
@@ -42,26 +65,65 @@ func OpenAckQueue(dataDir string) (*AckQueue, error) {
 		return nil, ErrIncompatibleType
 	}
 
-	firstIterator := q.db.NewIterator(nil, nil)
-	if err := firstIterator.Error(); err != nil {
-		firstIterator.Release()
-
-		return nil, err
-	}
-
-	return &AckQueue{
+	qu := &AckQueue{
 		q:                      q,
 		globalNextReaderCursor: q.head + 1,
-		oldIterator:            firstIterator,
 		writeMsgEvent:          make(chan struct{}, 1),
 		writeOpen:              true,
 		readOpen:               true,
 		isOpen:                 true,
-	}, nil
+	}
+
+	if err := qu.init(); err != nil {
+		return nil, err
+	}
+
+	return qu, nil
+}
+
+func (a *AckQueue) init() error {
+	firstIterator := a.q.db.NewIterator(&util.Range{
+		Start: a.q.prefix,
+	}, nil)
+	if err := firstIterator.Error(); err != nil {
+		firstIterator.Release()
+
+		return err
+	}
+
+	size, err := a.getSize()
+	if err != nil {
+		return err
+	}
+
+	a.size = size
+
+	return nil
+}
+
+func (a *AckQueue) getSize() (uint64, error) {
+	v, err := a.q.db.Get(ackQueueMetaSizeKey, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return keyToID(v), nil
+}
+
+func (a *AckQueue) putSize(size uint64) error {
+	if err := a.q.db.Put(ackQueueMetaSizeKey, idToKey(size), nil); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (a *AckQueue) incrSize() error {
 	a.size += 1
+
+	if err := a.putSize(a.size); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -102,7 +164,7 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 	var next uint64
 	if !a.oldIteratorIsClose {
 		if a.oldIterator.Next() {
-			next = keyToID(a.oldIterator.Key())
+			next = keyToID(a.q.decodingKey(a.oldIterator.Key()))
 
 			if err := a.oldIterator.Error(); err != nil {
 				return nil, err
@@ -166,6 +228,10 @@ readMsg:
 func (a *AckQueue) decrSize() error {
 	a.size -= 1
 
+	if err := a.putSize(a.size); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -186,6 +252,26 @@ func (a *AckQueue) Submit(id uint64) error {
 	}
 
 	return nil
+}
+
+type AckQueueState struct {
+	Length       uint64 // 队列现有数据长度
+	ReadCount    uint64 // 读取数据数量记录
+	ConfirmCount uint64 // 确认数据数量记录
+}
+
+func (a *AckQueue) State() AckQueueState {
+	a.mu.Lock()
+
+	state := AckQueueState{
+		Length:       a.size,
+		ReadCount:    a.readCount,
+		ConfirmCount: a.confirmCount,
+	}
+
+	a.mu.Unlock()
+
+	return state
 }
 
 func (a *AckQueue) CloseWrite() error {
@@ -332,15 +418,23 @@ func (o *ObjectAckQueue[T]) BDequeue(ctx context.Context) (*ObjectItem[T], error
 func (o *ObjectAckQueue[T]) Submit(id uint64) error {
 	return o.queue.Submit(id)
 }
+
+func (o *ObjectAckQueue[T]) State() AckQueueState {
+	return o.queue.State()
+}
+
 func (o *ObjectAckQueue[T]) CloseWrite() error {
 	return o.queue.CloseWrite()
 }
+
 func (o *ObjectAckQueue[T]) CloseRead() error {
 	return o.queue.CloseRead()
 }
+
 func (o *ObjectAckQueue[T]) Close() error {
 	return o.queue.Close()
 }
+
 func (o *ObjectAckQueue[T]) Drop() error {
 	return o.queue.Drop()
 }
