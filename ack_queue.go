@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"math"
 	"os"
 	"sync"
 
@@ -84,12 +86,14 @@ func OpenAckQueue(dataDir string) (*AckQueue, error) {
 func (a *AckQueue) init() error {
 	firstIterator := a.q.db.NewIterator(&util.Range{
 		Start: a.q.prefix,
+		Limit: a.q.encodingKey(idToKey(math.MaxUint64)),
 	}, nil)
 	if err := firstIterator.Error(); err != nil {
 		firstIterator.Release()
 
 		return err
 	}
+	a.oldIterator = firstIterator
 
 	size, err := a.getSize()
 	if err != nil {
@@ -104,6 +108,10 @@ func (a *AckQueue) init() error {
 func (a *AckQueue) getSize() (uint64, error) {
 	v, err := a.q.db.Get(ackQueueMetaSizeKey, nil)
 	if err != nil {
+		if errors.Is(err, leveldb.ErrNotFound) {
+			return 0, nil
+		}
+
 		return 0, err
 	}
 
@@ -153,6 +161,10 @@ func (a *AckQueue) Enqueue(value []byte) (*Item, error) {
 	return v, nil
 }
 
+func (a *AckQueue) incrReadCount() {
+	a.readCount++
+}
+
 func (a *AckQueue) Dequeue() (*Item, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -195,6 +207,8 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 
 	a.globalNextReaderCursor = next + 1
 
+	a.incrReadCount()
+
 	return v, nil
 }
 
@@ -235,6 +249,10 @@ func (a *AckQueue) decrSize() error {
 	return nil
 }
 
+func (a *AckQueue) incrConfirmCount() {
+	a.confirmCount++
+}
+
 func (a *AckQueue) Submit(id uint64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -243,11 +261,18 @@ func (a *AckQueue) Submit(id uint64) error {
 		return ErrInvalidAckID
 	}
 
+	_, err := a.q.getItemByID(id)
+	if err != nil {
+		return nil
+	}
+
 	if err := a.decrSize(); err != nil {
 		return err
 	}
 
-	if err := a.q.db.Delete(idToKey(id), nil); err != nil {
+	a.incrConfirmCount()
+
+	if err := a.q.db.Delete(a.q.encodingKey(idToKey(id)), nil); err != nil {
 		return err
 	}
 

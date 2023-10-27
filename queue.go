@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
+	"github.com/syndtr/goleveldb/leveldb/util"
+	"math"
 	"os"
 	"sync"
 
@@ -363,17 +365,20 @@ func (q *Queue) getItemByID(id uint64) (*Item, error) {
 // init initializes the queue data.
 func (q *Queue) init() error {
 	// Create a new LevelDB Iterator.
-	iter := q.db.NewIterator(nil, nil)
+	iter := q.db.NewIterator(&util.Range{
+		Start: q.prefix,
+		Limit: q.encodingKey(idToKey(math.MaxUint64)),
+	}, nil)
 	defer iter.Release()
 
 	// Set queue head to the first item.
 	if iter.First() {
-		q.head = keyToID(iter.Key()) - 1
+		q.head = keyToID(q.decodingKey(iter.Key())) - 1
 	}
 
 	// Set queue tail to the last item.
 	if iter.Last() {
-		q.tail = keyToID(iter.Key())
+		q.tail = keyToID(q.decodingKey(iter.Key()))
 	}
 
 	return iter.Error()

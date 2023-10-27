@@ -3,6 +3,7 @@ package goque
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -415,4 +416,76 @@ func TestObjectAckQueue(t *testing.T) {
 	}
 
 	t.Log(item2.Value)
+}
+
+func TestObjectAckQueueState(t *testing.T) {
+	q, err := OpenObjectAckQueue[int64](`./test_queue/ack_queue4`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		if err := q.Enqueue(int64(i + 50)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Log(q.State())
+
+	if err := q.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ok")
+}
+
+func TestObjectAckQueueState2(t *testing.T) {
+	q, err := OpenObjectAckQueue[int64](`./test_queue/ack_queue4`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(q.State())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer q.CloseRead()
+
+		var c int
+		for {
+			item, err := q.BDequeue(context.Background())
+			if err != nil {
+				fmt.Println("read count:", c)
+				return
+			}
+
+			c++
+
+			t.Log(item.Value)
+			if err := q.Submit(item.ID); err != nil {
+				panic(err)
+			}
+		}
+
+	}()
+
+	for i := 0; i < 100; i++ {
+		if err := q.Enqueue(int64(52 + i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := q.CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+
+	wg.Wait()
+	t.Log(`ok`)
+	t.Log(q.State())
+}
+
+func TestIdToKey(t *testing.T) {
+	id := idToKey(0)
+	t.Log(id)
 }
