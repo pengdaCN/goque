@@ -13,6 +13,7 @@ rm LICENSE -f
 rm README.md -f
 rm install_pro.sh
 rm goque.test
+rm Makefile
 
 find -iname '*.go' -exec sed -i 's@github.com/beeker1121/goque@npd/pkg/goque@' {} \;
 
