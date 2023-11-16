@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-	"github.com/syndtr/goleveldb/leveldb/util"
 	"math"
 	"os"
 	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )

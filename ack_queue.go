@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
 	"math"
 	"os"
 	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 )
