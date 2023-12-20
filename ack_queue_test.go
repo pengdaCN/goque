@@ -546,3 +546,70 @@ func TestAckQueue_Interface(t *testing.T) {
 	t.Log(iq.State())
 	t.Log("Ok")
 }
+
+func TestAckQueue_Pause(t *testing.T) {
+	q, err := OpenObjectAckQueue[int](`./test_queue/ack_queue4`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 先写入100条数据
+	for i := 0; i < 100; i++ {
+		if err := q.Enqueue(i + 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 每4秒暂停一次
+	go func() {
+		for {
+			time.Sleep(time.Second * 4)
+			q.Pause()
+			t.Log("暂停")
+			time.Sleep(time.Second * 4)
+			q.Continue()
+			t.Log("恢复")
+		}
+	}()
+
+	var wg sync.WaitGroup
+	// 每1秒消费1次
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			now := time.Now()
+			i, err := q.BDequeue(ctx)
+			cancel()
+			t.Log("1-耗时:", time.Since(now).String())
+			if err != nil {
+				return
+			}
+
+			t.Log("1-val:", i)
+			time.Sleep(time.Second)
+		}
+	}()
+
+	// 每1秒消费1次
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			now := time.Now()
+			i, err := q.BDequeue(ctx)
+			cancel()
+			t.Log("2-耗时:", time.Since(now).String())
+			if err != nil {
+				return
+			}
+
+			t.Log("2-val:", i)
+			time.Sleep(time.Second)
+		}
+	}()
+
+	wg.Wait()
+}

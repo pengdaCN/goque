@@ -22,4 +22,5 @@ var (
 	ErrDBClosed            = errors.New("goque: Database is closed")
 	ErrInvalidAckID        = errors.New(`goque: invalid ack id`)
 	ErrCloseWriteOperation = errors.New(`goque: write operation is closed`)
+	ErrDbPaused            = errors.New(`goque: the read has been paused`)
 )

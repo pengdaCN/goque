@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -43,6 +44,8 @@ type AckQueue struct {
 	readOpen               bool
 	oldIteratorIsClose     bool
 	isOpen                 bool
+	isPaused               bool
+	_pauseStateWait        atomic.Pointer[chan struct{}]
 }
 
 func OpenAckQueue(dataDir string) (*AckQueue, error) {
@@ -80,6 +83,10 @@ func OpenAckQueue(dataDir string) (*AckQueue, error) {
 	if err := qu.init(); err != nil {
 		return nil, err
 	}
+
+	// 初始化
+	qu.Pause()
+	qu.Continue()
 
 	return qu, nil
 }
@@ -174,6 +181,10 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 		return nil, ErrDBClosed
 	}
 
+	if a.isPaused {
+		return nil, ErrDbPaused
+	}
+
 	var next uint64
 	if !a.oldIteratorIsClose {
 		if a.oldIterator.Next() {
@@ -213,6 +224,10 @@ func (a *AckQueue) Dequeue() (*Item, error) {
 	return v, nil
 }
 
+func (a *AckQueue) pauseWaitCh() <-chan struct{} {
+	return *a._pauseStateWait.Load()
+}
+
 func (a *AckQueue) BDequeue(ctx context.Context) (*Item, error) {
 readMsg:
 	for {
@@ -229,6 +244,15 @@ readMsg:
 					}
 
 					// 关闭时，再次读取会返回db close
+					continue readMsg
+				}
+			case errors.Is(err, ErrDbPaused):
+				// 暂停的处理
+				pch := a.pauseWaitCh()
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-pch:
 					continue readMsg
 				}
 			}
@@ -280,10 +304,37 @@ func (a *AckQueue) Submit(id uint64) error {
 	return nil
 }
 
+func (a *AckQueue) Pause() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.isPaused {
+		return
+	}
+
+	a.isPaused = true
+	ch := make(chan struct{})
+	a._pauseStateWait.Store(&ch)
+}
+
+func (a *AckQueue) Continue() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if !a.isPaused {
+		return
+	}
+
+	a.isPaused = false
+	ch := *a._pauseStateWait.Load()
+	close(ch)
+}
+
 type AckQueueState struct {
 	Length       uint64 // 队列现有数据长度
 	ReadCount    uint64 // 读取数据数量记录
 	ConfirmCount uint64 // 确认数据数量记录
+	Pause        bool   // 是否暂停了读操作
 }
 
 func (a *AckQueue) State() AckQueueState {
@@ -293,6 +344,7 @@ func (a *AckQueue) State() AckQueueState {
 		Length:       a.size,
 		ReadCount:    a.readCount,
 		ConfirmCount: a.confirmCount,
+		Pause:        a.isPaused,
 	}
 
 	a.mu.Unlock()
@@ -465,6 +517,13 @@ func (o *ObjectAckQueue[T]) Drop() error {
 	return o.queue.Drop()
 }
 
+func (o *ObjectAckQueue[T]) Pause() {
+	o.queue.Pause()
+}
+func (o *ObjectAckQueue[T]) Continue() {
+	o.queue.Continue()
+}
+
 type IAckQueue[T any] interface {
 	Push(v T) error
 	Pop() (*ObjectItem[T], error)
@@ -475,6 +534,8 @@ type IAckQueue[T any] interface {
 	CloseRead() error  // 关闭读请求
 	Close() error      // 同时关闭读写请求
 	Drop() error       // 删除数据合目录
+	Pause()            // 暂停读操作
+	Continue()         // 从暂停状态中恢复
 }
 
 var _ IAckQueue[any] = (*iAckQueueImpl[any])(nil)
@@ -521,6 +582,14 @@ func (i *iAckQueueImpl[T]) Close() error {
 
 func (i *iAckQueueImpl[T]) Drop() error {
 	return i.q.Drop()
+}
+
+func (i *iAckQueueImpl[T]) Pause() {
+	i.q.Pause()
+}
+
+func (i *iAckQueueImpl[T]) Continue() {
+	i.q.Continue()
 }
 
 type AckQueuePush[T any] interface {
