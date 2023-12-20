@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+dst_dir=$1
+if [ -z "$dst_dir" ]; then
+  echo "没有目标目录"
+  exit 1
+fi
 code_dir=$(basename `pwd`)
 cd ..
 
@@ -20,7 +25,7 @@ find -iname '*.go' -exec sed -i 's@github.com/beeker1121/goque@npd/pkg/goque@' {
 rm -rf test_queue ack-design.txt
 
 cd ..
-dst=~/pro_code/npd/pkg/goque
+dst=${dst_dir}/pkg/goque
 mkdir -p $dst
 cp $dir/* $dst -r
 
