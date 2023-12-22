@@ -9,7 +9,7 @@ code_dir=$(basename `pwd`)
 cd ..
 
 dir=$(mktemp -d)
-cp $code_dir/* $dir -r
+cp "$code_dir"/* "$dir" -r
 cd $dir
 rm .git -rf
 rm .idea -rf
